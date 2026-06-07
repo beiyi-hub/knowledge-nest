@@ -113,26 +113,51 @@ pip install -r requirements.txt
 
 ```
 knowledge-nest/
-├── README.md                 ← 你在这里
+├── README.md                 ← 项目介绍
 ├── LICENSE                   ← MIT 开源
 ├── requirements.txt          ← Python 依赖
+├── visualization.html        ← 工作流可视化页面
 ├── scripts/                  ← 核心脚本
-│   ├── video_to_notes.py     ← Whisper 视频转文字
-│   ├── bilibili_pipeline.py  ← B站下载+转写一体化
-│   └── pipeline.py           ← 统一入口
+│   ├── pipeline.py           ← 统一入口
+│   └── bilibili_pipeline.py  ← B站下载+转写一体化
 ├── parser/                   ← 解析工具
 │   ├── xmind_parser.py       ← XMind 解析器（零依赖）
 │   └── xmind_to_obsidian.py  ← XMind → Obsidian 导入
+├── skills/                   ← 🤖 AI Agent 可装载的技能包
+│   ├── video-to-notes/       ← 🎬 B站→Whisper→LLM→Obsidian
+│   │   └── SKILL.md
+│   ├── xmind-parser/         ← 🗺️ XMind→Obsidian 导入
+│   │   ├── SKILL.md
+│   │   ├── xmind_parser.py
+│   │   └── xmind_to_obsidian.py
+│   └── knowledge-pipeline/   ← 🪺 全流程编排
+│       └── SKILL.md
 ├── wiki/                     ← 文档
 │   ├── note-format.md        ← 笔记格式规范
 │   ├── bilibili-guide.md     ← B站视频处理指南
-│   └── obsidian-workflow.md  ← Obsidian 工作流
+│   ├── obsidian-workflow.md  ← Obsidian 工作流
+│   └── agent-guide.md        ← 🤖 AI Agent 使用指南
 ├── examples/                 ← 示例
 │   ├── sample-note.md        ← 示例笔记
 │   └── economics.xmind       ← 示例思维导图
 └── tests/                    ← 测试
     └── test_xmind.py         ← XMind 解析器测试
 ```
+
+### 🤖 给 AI Agent 用的
+
+如果你是 AI Agent（Hermes、Claude、GPT 等），直接装载 `skills/` 目录下的技能包：
+
+```bash
+# Hermes Agent
+hermes skill install skills/video-to-notes
+hermes skill install skills/xmind-parser
+hermes skill install skills/knowledge-pipeline
+
+# 其他 Agent：加载 skills/*/SKILL.md 到工作记忆即可
+```
+
+每个 `SKILL.md` 包含完整的步骤、代码模板和避坑指南，Agent 可自主执行。
 
 ---
 
