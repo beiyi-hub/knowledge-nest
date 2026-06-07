@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Knowledge Nest 🪺 — 工作流可视化</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #0f0f1a;
+    color: #e0e0e0;
+    font-family: 'Inter', sans-serif;
+    overflow-x: hidden;
+    min-height: 100vh;
+  }
+
+  /* ── 星空背景 ── */
+  #stars-canvas {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    z-index: 0;
+    pointer-events: none;
+  }
+
+  .content {
+    position: relative;
+    z-index: 1;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 40px 24px 80px;
+  }
+
+  /* ── hero ── */
+  .hero {
+    text-align: center;
+    padding: 60px 0 40px;
+  }
+  .hero .logo {
+    font-size: 72px;
+    display: block;
+    margin-bottom: 16px;
+    animation: float 4s ease-in-out infinite;
+  }
+  @keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-12px); }
+  }
+  .hero h1 {
+    font-size: 48px;
+    font-weight: 800;
+    background: linear-gradient(135deg, #60a5fa, #a78bfa, #f472b6);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .hero p {
+    margin-top: 12px;
+    font-size: 18px;
+    color: #94a3b8;
+    max-width: 600px;
+    margin-left: auto;
+    margin-right: auto;
+    line-height: 1.6;
+  }
+  .hero .badges {
+    margin-top: 20px;
+    display: flex;
+    justify-content: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .badge {
+    padding: 6px 16px;
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 600;
+  }
+  .badge.blue { background: rgba(96,165,250,0.15); color: #60a5fa; border: 1px solid rgba(96,165,250,0.3); }
+  .badge.purple { background: rgba(167,139,250,0.15); color: #a78bfa; border: 1px solid rgba(167,139,250,0.3); }
+  .badge.pink { background: rgba(244,114,182,0.15); color: #f472b6; border: 1px solid rgba(244,114,182,0.3); }
+  .badge.green { background: rgba(52,211,153,0.15); color: #34d399; border: 1px solid rgba(52,211,153,0.3); }
+  .badge.orange { background: rgba(251,146,60,0.15); color: #fb923c; border: 1px solid rgba(251,146,60,0.3); }
+
+  /* ── section ── */
+  .section-title {
+    font-size: 28px;
+    font-weight: 700;
+    margin: 60px 0 30px;
+    text-align: center;
+    position: relative;
+  }
+  .section-title::after {
+    content: '';
+    display: block;
+    width: 60px;
+    height: 3px;
+    background: linear-gradient(90deg, #60a5fa, #a78bfa);
+    margin: 12px auto 0;
+    border-radius: 2px;
+  }
+
+  /* ── pipeline ── */
+  .pipeline {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    flex-wrap: wrap;
+    padding: 20px 0;
+  }
+  .pipe-step {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 16px;
+    padding: 20px 24px;
+    text-align: center;
+    min-width: 180px;
+    flex: 1;
+    max-width: 240px;
+    transition: all 0.3s ease;
+    cursor: default;
+    position: relative;
+  }
+  .pipe-step:hover {
+    background: rgba(255,255,255,0.08);
+    border-color: rgba(96,165,250,0.3);
+    transform: translateY(-4px);
+    box-shadow: 0 8px 32px rgba(96,165,250,0.1);
+  }
+  .pipe-step .step-icon {
+    font-size: 36px;
+    display: block;
+    margin-bottom: 10px;
+  }
+  .pipe-step .step-num {
+    display: inline-block;
+    background: rgba(96,165,250,0.15);
+    color: #60a5fa;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 10px;
+    border-radius: 999px;
+    margin-bottom: 8px;
+  }
+  .pipe-step h3 {
+    font-size: 16px;
+    font-weight: 700;
+    margin-bottom: 6px;
+  }
+  .pipe-step p {
+    font-size: 13px;
+    color: #94a3b8;
+    line-height: 1.5;
+  }
+  .pipe-arrow {
+    font-size: 24px;
+    color: #475569;
+    padding: 0 4px;
+    flex-shrink: 0;
+  }
+  @media (max-width: 1000px) {
+    .pipeline { flex-direction: column; gap: 8px; }
+    .pipe-arrow { transform: rotate(90deg); padding: 4px 0; }
+    .pipe-step { max-width: 400px; width: 100%; }
+  }
+
+  /* ── 微交互 ── */
+  .pipe-step.active {
+    border-color: #60a5fa;
+    box-shadow: 0 0 20px rgba(96,165,250,0.15), inset 0 0 20px rgba(96,165,250,0.05);
+  }
+  .pipe-step.active .step-icon { animation: pulse-icon 1s ease infinite; }
+  @keyframes pulse-icon {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.15); }
+  }
+
+  /* ── detail cards ── */
+  .detail-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 20px;
+    margin: 20px 0;
+  }
+  .detail-card {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 16px;
+    padding: 28px;
+    transition: all 0.3s ease;
+  }
+  .detail-card:hover {
+    background: rgba(255,255,255,0.06);
+    border-color: rgba(96,165,250,0.2);
+  }
+  .detail-card .card-icon {
+    font-size: 32px;
+    margin-bottom: 12px;
+  }
+  .detail-card h3 {
+    font-size: 18px;
+    font-weight: 700;
+    margin-bottom: 10px;
+  }
+  .detail-card ul {
+    list-style: none;
+    padding: 0;
+  }
+  .detail-card li {
+    padding: 4px 0;
+    font-size: 14px;
+    color: #cbd5e1;
+    line-height: 1.6;
+    padding-left: 20px;
+    position: relative;
+  }
+  .detail-card li::before {
+    content: '→';
+    position: absolute;
+    left: 0;
+    color: #60a5fa;
+  }
+  .detail-card code {
+    background: rgba(96,165,250,0.1);
+    color: #93c5fd;
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-size: 13px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  /* ── file tree ── */
+  .filetree {
+    background: rgba(0,0,0,0.3);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 12px;
+    padding: 24px 32px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 14px;
+    line-height: 2;
+    overflow-x: auto;
+  }
+  .filetree .dir { color: #60a5fa; }
+  .filetree .file { color: #cbd5e1; }
+  .filetree .highlight { color: #facc15; }
+  .filetree .indent { padding-left: 24px; }
+  .filetree .indent2 { padding-left: 48px; }
+  .filetree .indent3 { padding-left: 72px; }
+
+  /* ── commands ── */
+  .cmd-block {
+    background: rgba(0,0,0,0.4);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 12px;
+    padding: 20px 24px;
+    margin: 10px 0;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 14px;
+    line-height: 2;
+    overflow-x: auto;
+  }
+  .cmd-block .prompt { color: #34d399; }
+  .cmd-block .comment { color: #64748b; font-style: italic; }
+  .cmd-block .output { color: #94a3b8; }
+
+  /* ── footer ── */
+  .footer {
+    text-align: center;
+    padding: 40px 0 20px;
+    color: #64748b;
+    font-size: 14px;
+  }
+  .footer a {
+    color: #60a5fa;
+    text-decoration: none;
+  }
+
+  /* ── tooltip-style flow labels ── */
+  .flow-labels {
+    display: flex;
+    justify-content: center;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin: 10px 0 30px;
+  }
+  .flow-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: #94a3b8;
+  }
+  .flow-label .dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+  }
+  .dot.blue { background: #60a5fa; }
+  .dot.purple { background: #a78bfa; }
+  .dot.pink { background: #f472b6; }
+  .dot.green { background: #34d399; }
+  .dot.orange { background: #fb923c; }
+</style>
+</head>
+<body>
+
+<canvas id="stars-canvas"></canvas>
+
+<div class="content">
+
+  <!-- ── Hero ── -->
+  <div class="hero">
+    <span class="logo">🪺</span>
+    <h1>Knowledge Nest</h1>
+    <p>视频 → 笔记 → Obsidian → 思维导图 — 一键构建你的体系化知识库</p>
+    <div class="badges">
+      <span class="badge blue">🎬 B站下载</span>
+      <span class="badge purple">🎙️ Whisper 转写</span>
+      <span class="badge pink">🧠 LLM 整理</span>
+      <span class="badge green">📓 Obsidian 存档</span>
+      <span class="badge orange">🗺️ XMind 联动</span>
+    </div>
+  </div>
+
+  <!-- ── 流水线动画 ── -->
+  <div class="section-title">📋 完整工作流</div>
+
+  <div class="flow-labels">
+    <span class="flow-label"><span class="dot blue"></span> Phase 1: 采集</span>
+    <span class="flow-label"><span class="dot purple"></span> Phase 2: 转写</span>
+    <span class="flow-label"><span class="dot pink"></span> Phase 3: 结构化</span>
+    <span class="flow-label"><span class="dot green"></span> Phase 4: 入库</span>
+    <span class="flow-label"><span class="dot orange"></span> Phase 5: 联动</span>
+  </div>
+
+  <div class="pipeline" id="pipeline">
+    <div class="pipe-step" data-phase="1">
+      <span class="step-num">Phase 1</span>
+      <span class="step-icon">🎬</span>
+      <h3>内容采集</h3>
+      <p>B站视频下载<br>（反爬绕过）</p>
+    </div>
+    <span class="pipe-arrow">→</span>
+
+    <div class="pipe-step" data-phase="2">
+      <span class="step-num">Phase 2</span>
+      <span class="step-icon">🎙️</span>
+      <h3>语音转写</h3>
+      <p>faster-whisper<br>中/英/俄多语言</p>
+    </div>
+    <span class="pipe-arrow">→</span>
+
+    <div class="pipe-step" data-phase="3">
+      <span class="step-num">Phase 3</span>
+      <span class="step-icon">🧠</span>
+      <h3>LLM 结构化</h3>
+      <p>提炼核心观点<br>分类 + 标签 + 双向链接</p>
+    </div>
+    <span class="pipe-arrow">→</span>
+
+    <div class="pipe-step" data-phase="4">
+      <span class="step-num">Phase 4</span>
+      <span class="step-icon">📓</span>
+      <h3>Obsidian 入库</h3>
+      <p>自动分类存档<br>YAML front-matter</p>
+    </div>
+    <span class="pipe-arrow">→</span>
+
+    <div class="pipe-step" data-phase="5">
+      <span class="step-num">Phase 5</span>
+      <span class="step-icon">🗺️</span>
+      <h3>XMind 联动</h3>
+      <p>导图→独立笔记<br>双向链接知识网络</p>
+    </div>
+  </div>
+
+  <!-- ── 各阶段详情 ── -->
+  <div class="section-title">🔍 各阶段详解</div>
+
+  <div class="detail-grid">
+
+    <div class="detail-card">
+      <div class="card-icon">🎬</div>
+      <h3>Phase 1 · 内容采集</h3>
+      <ul>
+        <li>B站链接 → 提取 BV 号</li>
+        <li>Playwright 获取新鲜 cookies</li>
+        <li>B站 API → 获取视频流地址</li>
+        <li><code>qn=80</code> 1080P 高清下载</li>
+        <li>绕过 412 反爬策略</li>
+      </ul>
+    </div>
+
+    <div class="detail-card">
+      <div class="card-icon">🎙️</div>
+      <h3>Phase 2 · 语音转写</h3>
+      <ul>
+        <li>faster-whisper 引擎</li>
+        <li>支持中文 <code>-l zh</code></li>
+        <li>支持英文 <code>-l en</code> / 俄语 <code>-l ru</code></li>
+        <li>模型选择: base / small / large-v3</li>
+        <li>输出: 时间轴文本 + SRT 字幕</li>
+        <li>HF 国内镜像 <code>hf-mirror.com</code></li>
+      </ul>
+    </div>
+
+    <div class="detail-card">
+      <div class="card-icon">🧠</div>
+      <h3>Phase 3 · LLM 结构化</h3>
+      <ul>
+        <li>阅读 Whisper 全文转写</li>
+        <li>LLM 提炼核心观点 + 关键洞察</li>
+        <li>自动生成 YAML front-matter</li>
+        <li>判断内容分类</li>
+        <li>生成 <code>[[双向链接]]</code> 关联笔记</li>
+      </ul>
+    </div>
+
+    <div class="detail-card">
+      <div class="card-icon">📓</div>
+      <h3>Phase 4 · Obsidian 入库</h3>
+      <ul>
+        <li>按分类存入 <code>Notes/</code> 目录</li>
+        <li>AI学习 / 编程开发 / 经济学 / 语言 / 学术 / 日常</li>
+        <li>标准 YAML front-matter 格式</li>
+        <li>自动创建分类文件夹</li>
+        <li>兼容 Obsidian Graph View</li>
+      </ul>
+    </div>
+
+    <div class="detail-card">
+      <div class="card-icon">🗺️</div>
+      <h3>Phase 5 · XMind 联动</h3>
+      <ul>
+        <li>纯 Python 零依赖解析 XMind</li>
+        <li>支持 XMind 8 + XMind 2020+</li>
+        <li>每个节点 → 独立 .md 笔记</li>
+        <li>自动建立 <code>[[双向链接]]</code></li>
+        <li>自动生成 MOC 索引页</li>
+        <li>Obsidian Graph 可视化</li>
+      </ul>
+    </div>
+
+  </div>
+
+  <!-- ── 仓库结构 ── -->
+  <div class="section-title">📦 仓库结构</div>
+  <div class="filetree">
+    <span class="dir">knowledge-nest</span><span class="highlight">/</span><br>
+    <span class="indent"><span class="file">├── README.md</span> <span class="comment"># 项目介绍</span></span><br>
+    <span class="indent"><span class="file">├── LICENSE</span> <span class="comment"># MIT 开源</span></span><br>
+    <span class="indent"><span class="file">├── requirements.txt</span></span><br>
+    <span class="indent"><span class="dir">├── scripts</span><span class="highlight">/</span></span><br>
+    <span class="indent2"><span class="file">├── pipeline.py</span> <span class="comment"># 统一入口</span></span><br>
+    <span class="indent2"><span class="file">├── bilibili_pipeline.py</span> <span class="comment"># B站下载→转写</span></span><br>
+    <span class="indent"><span class="dir">├── parser</span><span class="highlight">/</span></span><br>
+    <span class="indent2"><span class="file">├── xmind_parser.py</span> <span class="comment"># XMind 解析器（零依赖）</span></span><br>
+    <span class="indent2"><span class="file">├── xmind_to_obsidian.py</span> <span class="comment"># XMind → Obsidian 导入</span></span><br>
+    <span class="indent"><span class="dir">├── wiki</span><span class="highlight">/</span> <span class="comment"># 使用文档</span></span><br>
+    <span class="indent"><span class="dir">├── examples</span><span class="highlight">/</span> <span class="comment"># 示例</span></span><br>
+    <span class="indent"><span class="dir">└── tests</span><span class="highlight">/</span> <span class="comment"># 单元测试 ✅ 4/4</span></span><br>
+  </div>
+
+  <!-- ── 快速上手 ── -->
+  <div class="section-title">⚡ 快速上手</div>
+
+  <div class="cmd-block">
+    <span class="comment"># 1️⃣ 解析 XMind 思维导图</span><br>
+    <span class="prompt">$</span> python parser/xmind_parser.py 导图.xmind<br>
+    <br>
+    <span class="comment"># 2️⃣ 导入到 Obsidian（自动双向链接）</span><br>
+    <span class="prompt">$</span> python parser/xmind_to_obsidian.py 导图.xmind --vault ~/obsidian-vault --summary<br>
+    <br>
+    <span class="comment"># 3️⃣ 一条命令走完全流程</span><br>
+    <span class="prompt">$</span> python scripts/pipeline.py xmind 导图.xmind --obsidian<br>
+    <span class="output">   ✅ 生成 20 个文件</span><br>
+    <span class="output">     📄 ~/obsidian-vault/Notes/经济学/思维导图/经济学.md</span><br>
+    <span class="output">     📄 ~/obsidian-vault/Notes/经济学/思维导图/古典经济学.md</span><br>
+    <span class="output">     ...</span><br>
+    <br>
+    <span class="comment"># 4️⃣ B站视频下载（反爬绕过）</span><br>
+    <span class="prompt">$</span> python scripts/bilibili_pipeline.py BV1xxxxxx<br>
+    <span class="output">   📺 标题: 中美会面前，双方如何出招？</span><br>
+    <span class="output">   🎬 下载完成 (156.2 MB)</span><br>
+    <span class="output">   🎙️ 转写完成!</span><br>
+  </div>
+
+  <!-- ── 知识图谱展示 ── -->
+  <div class="section-title">🔗 知识图谱示例</div>
+
+  <div style="background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.06); border-radius: 16px; padding: 30px; text-align: center;">
+    <div style="display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; margin-bottom: 20px;">
+      <span style="background: rgba(96,165,250,0.12); color: #60a5fa; padding: 10px 20px; border-radius: 999px; border: 1px solid rgba(96,165,250,0.2); font-weight: 600;">🇨🇳 中美关系分析</span>
+      <span style="color: #475569; font-size: 20px; align-self: center;">↔️</span>
+      <span style="background: rgba(167,139,250,0.12); color: #a78bfa; padding: 10px 20px; border-radius: 999px; border: 1px solid rgba(167,139,250,0.2); font-weight: 600;">💰 贸易博弈</span>
+      <span style="color: #475569; font-size: 20px; align-self: center;">↔️</span>
+      <span style="background: rgba(244,114,182,0.12); color: #f472b6; padding: 10px 20px; border-radius: 999px; border: 1px solid rgba(244,114,182,0.2); font-weight: 600;">🔧 芯片限制</span>
+    </div>
+    <div style="display: flex; justify-content: center; gap: 10px; flex-wrap: wrap;">
+      <span style="background: rgba(52,211,153,0.12); color: #34d399; padding: 10px 20px; border-radius: 999px; border: 1px solid rgba(52,211,153,0.2); font-weight: 600;">🌏 一带一路</span>
+      <span style="color: #475569; font-size: 20px; align-self: center;">↔️</span>
+      <span style="background: rgba(251,146,60,0.12); color: #fb923c; padding: 10px 20px; border-radius: 999px; border: 1px solid rgba(251,146,60,0.2); font-weight: 600;">🤝 QUAD</span>
+      <span style="color: #475569; font-size: 20px; align-self: center;">↔️</span>
+      <span style="background: rgba(248,113,113,0.12); color: #f87171; padding: 10px 20px; border-radius: 999px; border: 1px solid rgba(248,113,113,0.2); font-weight: 600;">📉 关税博弈</span>
+    </div>
+    <p style="margin-top: 24px; color: #94a3b8; font-size: 14px;">
+      ⚡ 每个视频笔记自动生成 <code style="color: #facc15;">[[双向链接]]</code>，多篇笔记累积形成互联知识网络
+    </p>
+  </div>
+
+  <!-- ── 设计理念 ── -->
+  <div class="section-title">🧠 设计理念</div>
+  <div class="detail-grid">
+    <div class="detail-card" style="text-align: center;">
+      <div style="font-size: 40px; margin-bottom: 12px;">🪺</div>
+      <h3>为什么叫 Knowledge Nest？</h3>
+      <p style="color: #94a3b8; font-size: 14px; line-height: 1.7; margin-top: 8px;">
+        像鸟巢一样 —— 把零散的知识碎片（视频、文章、导图）衔回来，<br>
+        整理成温暖、有序的「知识巢穴」。
+      </p>
+    </div>
+    <div class="detail-card">
+      <h3>四大原则</h3>
+      <ul>
+        <li><strong>零依赖优先</strong> — XMind 解析器纯 Python 标准库实现</li>
+        <li><strong>AI 增强，不替代</strong> — Whisper + LLM，知识组织由你掌控</li>
+        <li><strong>Obsidian 原生</strong> — <code>[[双向链接]]</code>、Graph View、Tag 全兼容</li>
+        <li><strong>反爬友好</strong> — B站下载绕过 412，Playwright 获取合法 cookies</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- ── footer ── -->
+  <div class="footer">
+    <a href="https://github.com/beiyi-hub/knowledge-nest" target="_blank">github.com/beiyi-hub/knowledge-nest</a>
+    <br><br>
+    🪺 <strong>Knowledge Nest</strong> — 知识不是孤岛，而是群岛。
+  </div>
+
+</div>
+
+<script>
+// ── 星空 canvas ──
+const canvas = document.getElementById('stars-canvas');
+const ctx = canvas.getContext('2d');
+
+function resizeCanvas() {
+  canvas.width = window.innerWidth;
+  canvas.height = document.body.scrollHeight;
+}
+resizeCanvas();
+window.addEventListener('resize', resizeCanvas);
+
+const stars = [];
+for (let i = 0; i < 120; i++) {
+  stars.push({
+    x: Math.random() * canvas.width,
+    y: Math.random() * canvas.height,
+    r: Math.random() * 1.5 + 0.3,
+    speed: Math.random() * 0.5 + 0.1,
+    alpha: Math.random() * 0.8 + 0.2,
+  });
+}
+
+function drawStars() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  stars.forEach(s => {
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(148, 163, 184, ${s.alpha * (Math.sin(Date.now() * s.speed / 1000) * 0.5 + 0.5)})`;
+    ctx.fill();
+  });
+  requestAnimationFrame(drawStars);
+}
+drawStars();
+
+// ── 流水线逐帧高亮动画 ──
+const steps = document.querySelectorAll('.pipe-step');
+let currentStep = 0;
+
+function highlightStep() {
+  steps.forEach((s, i) => {
+    s.classList.toggle('active', i === currentStep);
+  });
+  currentStep = (currentStep + 1) % steps.length;
+}
+
+// 等页面加载后再启动
+setTimeout(() => {
+  highlightStep();
+  setInterval(highlightStep, 2200);
+}, 500);
+</script>
+
+</body>
+</html>
