@@ -17,10 +17,13 @@ import os
 import sys
 import re
 import subprocess
-from tqdm import tqdm
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_DIR = os.path.dirname(SCRIPT_DIR)
 
 INPUT_DIR = os.path.expanduser('~/video_to_notes/input')
 OUTPUT_DIR = os.path.expanduser('~/video_to_notes/output')
+
+from tqdm import tqdm
 
 
 def extract_bvid(text: str) -> str:
@@ -113,7 +116,7 @@ def transcribe(video_path: str, lang: str = 'zh', model: str = 'base'):
     env['HF_ENDPOINT'] = 'https://hf-mirror.com'
 
     cmd = [
-        'python3', os.path.expanduser('~/video_to_notes/process_video.py'),
+        'python3', os.path.join(PROJECT_DIR, 'scripts', 'process_video.py'),
         video_path,
         '-l', lang,
         '-m', model,
