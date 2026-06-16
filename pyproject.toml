@@ -1,0 +1,67 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.backends._legacy:_Backend"
+
+[project]
+name = "knowledge-nest"
+version = "2.0.0"
+description = "从零散内容到结构化知识库 — 视频转写、XMind解析、Obsidian集成"
+readme = "README.md"
+authors = [
+    { name = "北颐", email = "beiyi-hub@users.noreply.github.com" },
+]
+license = { text = "MIT" }
+requires-python = ">=3.9"
+keywords = ["knowledge-management", "obsidian", "bilibili", "whisper", "xmind", "notes"]
+
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Text Processing :: Markup",
+    "Topic :: Utilities",
+]
+
+dependencies = [
+    "requests>=2.31.0",
+    "tqdm>=4.66.0",
+]
+
+[project.optional-dependencies]
+# 基本依赖
+all = [
+    "requests>=2.31.0",
+    "tqdm>=4.66.0",
+]
+# B站采集（Playwright cookies）
+bilibili = [
+    "playwright>=1.40.0",
+]
+# Whisper 转写
+whisper = [
+    "faster-whisper>=1.0.0",
+]
+# 配置文件支持
+yaml = [
+    "pyyaml>=6.0",
+]
+# 开发
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/beiyi-hub/knowledge-nest"
+Repository = "https://github.com/beiyi-hub/knowledge-nest"
+
+[project.scripts]
+knest = "knest.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["knest*"]

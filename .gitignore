@@ -4,9 +4,11 @@ __pycache__/
 *.egg-info/
 dist/
 build/
+*.egg
 
 # Env
 .env
+config.yaml  # 用户配置文件（不是示例）
 venv/
 .venv/
 
@@ -25,6 +27,9 @@ input/
 *.mp4
 *.wav
 *.srt
+
+# Knowledge Nest cache
+~/.knest/
 
 # Logs
 *.log

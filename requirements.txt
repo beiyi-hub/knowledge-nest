@@ -1,4 +1,19 @@
-faster-whisper>=1.0.0
-playwright>=1.40.0
+# Knowledge Nest 依赖
+# 安装方式: pip install -r requirements.txt
+# 或: pip install -e .[all]
+
+# === 核心（必须）===
 requests>=2.31.0
 tqdm>=4.66.0
+
+# === B站采集（可选）===
+# playwright>=1.40.0
+
+# === Whisper 转写（可选）===
+# faster-whisper>=1.0.0
+
+# === 配置文件（可选）===
+# pyyaml>=6.0
+
+# === 离线安装（国内镜像）===
+# pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple

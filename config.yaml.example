@@ -1,0 +1,18 @@
+# Knowledge Nest 配置文件
+# 复制此文件为 config.yaml 并修改
+
+# 缓存和输出目录
+cache_dir: ~/.knest/cache
+output_dir: ~/.knest/output
+
+# Obsidian 集成
+obsidian_vault: ~/obsidian-vault
+obsidian_notes_dir: Notes
+
+# B站下载
+bilibili_quality: 80        # 80=1080P, 64=720P, 32=480P, 16=360P
+
+# Whisper 转写
+whisper_model: base          # tiny/base/small/medium/large-v3
+whisper_language: zh         # zh/en/ru/ja
+hf_endpoint: https://hf-mirror.com  # HuggingFace 镜像（国内用户设置）
