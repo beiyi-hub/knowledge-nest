@@ -15,7 +15,7 @@ import zipfile
 import xml.etree.ElementTree as ET
 import json
 import sys
-import os
+from pathlib import Path
 
 # ── 命名空间 ──
 NS_XMIND_8 = 'urn:xmind:xmap:xmlns:content:2.0'
@@ -122,7 +122,7 @@ def parse_xmind(path: str) -> list:
         ...
     ]
     """
-    if not os.path.exists(path):
+    if not Path(path).exists():
         raise FileNotFoundError(f'文件不存在: {path}')
 
     with zipfile.ZipFile(path, 'r') as z:
@@ -197,7 +197,7 @@ def _text_lines(node, lines, depth=0, indent='  '):
 
 def main():
     if len(sys.argv) < 2:
-        print(f'用法: python {os.path.basename(sys.argv[0])} 文件.xmind [--markdown|--text]')
+        print(f'用法: python {Path(sys.argv[0]).name} 文件.xmind [--markdown|--text]')
         sys.exit(1)
 
     path = sys.argv[1]

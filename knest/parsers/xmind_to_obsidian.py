@@ -1,208 +1,184 @@
 """
-XMind → Obsidian 导入器。
+XMind 思维导图 → Obsidian 笔记导入器 — 跨平台兼容。
 
-将 .xmind 思维导图中的每个节点转换为独立的 Obsidian 笔记，
-自动建立 [[双向链接]] 和 MOC（Map of Content）索引页。
-
-基于 knest 配置系统，路径全部可配置。
+将 .xmind 文件解析后，为每个 sheet 的每个拓扑节点生成独立笔记，
+并自动创建 [[双向链接]] 和 MOC（内容地图）索引。
 """
+import json
 import os
-import re
-from datetime import date
+from pathlib import Path
 from typing import Optional
 
 from knest.config import Config
-from knest.writers.obsidian import make_front_matter
 from knest.parsers.xmind_parser import parse_xmind
 
 
-def sanitize_filename(name: str) -> str:
-    name = re.sub(r'[\\/:*?"<>|]', "_", name).strip()
-    name = re.sub(r"\s+", " ", name)
-    return name or "未命名"
-
-
-def _collect_all_nodes(node: dict, parent_title: str = None) -> list[dict]:
-    """递归收集所有节点（flat list）。"""
-    nodes = []
-    nodes.append({
-        "title": node["title"],
-        "children": [c["title"] for c in node["children"]],
-        "parent": parent_title,
-        "id": node.get("id", ""),
-    })
-    for child in node["children"]:
-        nodes.extend(_collect_all_nodes(child, node["title"]))
-    return nodes
-
-
-def _generate_moc(sheet_title: str, root: dict, nodes: list[dict]) -> str:
-    """生成 MOC 索引页。"""
-    lines = []
-    lines.append(make_front_matter(
-        title=f"{sheet_title} — 索引",
-        tags=["xmind", "思维导图", "MOC"],
-    ))
-    lines.append("")
-    lines.append(f"# {sheet_title} — 思维导图索引")
-    lines.append("")
-    lines.append(f"> 由 XMind 文件自动导入，共 {len(nodes)} 个节点")
-    lines.append("")
-    lines.append("## 节点总览")
-    lines.append("")
-
-    def write_branch(node, depth=0):
-        spacing = "  " * depth
-        lines.append(f"{spacing}- [[{node['title']}]]")
-        for c in node["children"]:
-            write_branch(c, depth + 1)
-
-    write_branch(root)
-    lines.append("")
-    return "\n".join(lines)
-
-
-def _generate_note(node: dict, sheet_title: str) -> str:
-    """生成单个节点笔记。"""
-    tags = ["xmind", "思维导图"]
-    source_parts = []
-    if sheet_title:
-        source_parts.append(f"XMind → {sheet_title}")
-    if node["parent"]:
-        source_parts.append(f"属于: {node['parent']}")
-    source_parts.append("思维导图导入")
-    source = " | ".join(source_parts)
-
-    lines = []
-    lines.append(make_front_matter(
-        title=node["title"],
-        tags=tags,
-        source=source,
-    ))
-    if node["parent"]:
-        lines.append(f"parent: \"{node['parent']}\"")
-    lines.append("---")
-    lines.append("")
-    lines.append(f"# {node['title']}")
-    lines.append("")
-
-    if node["parent"]:
-        lines.append(f"> 属于：[[{node['parent']}]]")
-        lines.append("")
-
-    if node["children"]:
-        lines.append("## 分支")
-        lines.append("")
-        for child_title in node["children"]:
-            lines.append(f"- [[{child_title}]]")
-        lines.append("")
-
-    lines.append("---")
-    lines.append("")
-    lines.append(f"*此笔记由 XMind 思维导图「{sheet_title}」自动导入。*")
-    lines.append("")
-
-    return "\n".join(lines)
-
-
-def xmind_to_obsidian(
-    path: str,
-    config: Optional[Config] = None,
-    subdir: str = "",
-    summary: bool = False,
-    moc_only: bool = False,
-) -> list[str]:
-    """将 XMind 文件导入 Obsidian Vault。
+def import_xmind_to_obsidian(xmind_path: str, config: Optional[Config] = None) -> list[str]:
+    """将 .xmind 文件导入到 Obsidian Vault。
 
     Args:
-        path: .xmind 文件路径
-        config: 配置实例（默认使用全局配置）
-        subdir: 笔记存放的子目录（如 "思维导图"）
-        summary: 是否生成汇总页
-        moc_only: 只生成 MOC 索引
+        xmind_path: .xmind 文件路径
+        config: 配置实例
 
     Returns:
-        生成的文件路径列表
+        生成的笔记文件路径列表
     """
-    config = config or Config()
-    vault = config.obsidian_vault
+    cfg = config or Config()
+    sheets = parse_xmind(xmind_path)
 
-    # 智能分类：从文件路径或内容检测
-    category = "未分类"
-    if subdir:
-        category = os.path.dirname(subdir) if "/" in subdir else "未分类"
+    vault = Path(cfg.obsidian_vault)
+    notes_base = vault / cfg.obsidian_notes_dir
 
-    notes_base = os.path.join(vault, config.obsidian_notes_dir)
-    base_dir = os.path.join(notes_base, category)
-    if subdir:
-        if "/" in subdir:
-            base_dir = os.path.join(notes_base, subdir)
-        else:
-            base_dir = os.path.join(base_dir, subdir)
-    os.makedirs(base_dir, exist_ok=True)
+    # 使用导入文件名作为基础分类
+    xmind_name = Path(xmind_path).stem
+    category_name = _guess_category_from_xmind(xmind_name)
+    base_dir = notes_base / "思维导图" / category_name
 
-    sheets = parse_xmind(path)
-    generated_files = []
-    sheets_nodes = []
+    created_files = []
 
-    for sheet in sheets:
-        sheet_title = sheet["sheet"]
-        root = sheet["root"]
+    for sheet_data in sheets:
+        sheet_name = sheet_data.get("sheet", "未命名画布")
+        root = sheet_data.get("root", {})
+        node_dir = base_dir / sheet_name
+        node_dir.mkdir(parents=True, exist_ok=True)
 
-        all_nodes = _collect_all_nodes(root)
-        sheet_name = sanitize_filename(sheet_title)
-        node_dir = os.path.join(base_dir, sheet_name)
-        os.makedirs(node_dir, exist_ok=True)
+        # 生成 MOC（地图索引）
+        moc_path = node_dir / f"{sheet_name} — 索引.md"
+        moc_lines = [
+            f"---",
+            f"title: {sheet_name} — 思维导图索引",
+            f"created: {__import__('datetime').date.today().isoformat()}",
+            f"tags: [\"思维导图\", \"{category_name}\", \"{xmind_name}\"]",
+            f"moc: true",
+            f"source: \"{xmind_name}.xmind\"",
+            f"---\n",
+            f"# 🗺️ {sheet_name}\n",
+        ]
 
-        sheets_nodes.append((sheet_title, root, all_nodes))
+        def _count_topics(node: dict) -> int:
+            """递归统计主题数。"""
+            count = 1
+            for child in node.get("children", []):
+                count += _count_topics(child)
+            return count
 
-        # MOC 索引
-        moc_content = _generate_moc(sheet_title, root, all_nodes)
-        moc_path = os.path.join(base_dir, f"{sheet_name} — 索引.md")
-        with open(moc_path, "w", encoding="utf-8") as f:
-            f.write(moc_content)
-        generated_files.append(moc_path)
+        topic_count = _count_topics(root)
+        moc_lines.append(f"> 来自 `{xmind_name}.xmind` | 共 {topic_count} 个主题\n")
 
-        if not moc_only:
-            for node_info in all_nodes:
-                note_content = _generate_note(node_info, sheet_title)
-                note_name = sanitize_filename(node_info["title"])
-                note_path = os.path.join(node_dir, f"{note_name}.md")
+        def _write_topic(topic: dict, parent_links=None, depth=0):
+            if parent_links is None:
+                parent_links = []
 
-                counter = 1
-                while os.path.exists(note_path):
-                    note_path = os.path.join(node_dir, f"{note_name}_{counter}.md")
-                    counter += 1
+            topic_title = topic.get("title", "未命名节点")
+            # 安全文件名
+            safe_name = _safe_filename(topic_title)
+            note_name = f"{sheet_name} — {safe_name}"
+            note_path = node_dir / f"{note_name}.md"
 
-                with open(note_path, "w", encoding="utf-8") as f:
-                    f.write(note_content)
-                generated_files.append(note_path)
+            # 避免冲突
+            counter = 1
+            while note_path.exists():
+                note_path = node_dir / f"{note_name}_{counter}.md"
+                counter += 1
 
-    if summary and sheets_nodes:
-        summary_content = _generate_summary_page(sheets_nodes)
-        summary_path = os.path.join(vault, "XMind导入汇总.md")
-        with open(summary_path, "w", encoding="utf-8") as f:
-            f.write(summary_content)
-        generated_files.append(summary_path)
+            children = topic.get("children", [])
 
-    return generated_files
+            # 构建笔记内容
+            lines = [
+                "---",
+                f'title: {topic_title}',
+                f"created: {__import__('datetime').date.today().isoformat()}",
+                f'tags: ["思维导图", "{category_name}", "{xmind_name}"]',
+                f'source: "{xmind_name}.xmind"',
+                'links:',
+            ]
+            for pl in parent_links:
+                lines.append(f'  - "[[{pl}]]"')
+            if children:
+                lines.append('children:')
+                for child in children:
+                    child_name = f"{sheet_name} — {_safe_filename(child.get('title', '未命名节点'))}"
+                    lines.append(f'  - "[[{child_name}]]"')
+            lines.append("---\n")
+            lines.append(f"# {topic_title}\n")
+            if parent_links:
+                lines.append("**父级节点：** " + " → ".join(
+                    [f"[[{p}]]" for p in parent_links]
+                ) + "\n")
+            if children:
+                lines.append("\n**子级节点：**\n")
+                for child in children:
+                    child_name = f"{sheet_name} — {_safe_filename(child.get('title', '未命名节点'))}"
+                    lines.append(f"- [[{child_name}]]")
+                lines.append("")
+
+            lines.append(f"\n---\n*此笔记由 {xmind_name}.xmind 自动生成*")
+            note_path.write_text("\n".join(lines), encoding="utf-8")
+            created_files.append(str(note_path))
+
+            # 添加到 MOC
+            indent = "  " * depth
+            moc_lines.append(f"{indent}- [[{note_name}]]")
+            if topic_title:
+                moc_lines.append(f"{indent}  — {topic_title}")
+
+            # 递归处理子节点
+            current_links = parent_links + [note_name]
+            for child in children:
+                _write_topic(child, current_links, depth + 1)
+
+        # 处理所有顶级主题（root 本身 + 其直接子节点）
+        root_children = root.get("children", [])
+        for child in root_children:
+            _write_topic(child)
+
+        # 写入 MOC
+        moc_path.write_text("\n".join(moc_lines), encoding="utf-8")
+        created_files.append(str(moc_path))
+
+    # 生成全局汇总
+    summary_path = vault / "XMind导入汇总.md"
+    summary_lines = [
+        "---",
+        "title: XMind 导入汇总",
+        f"created: {__import__('datetime').date.today().isoformat()}",
+        'tags: ["思维导图", "汇总"]',
+        "---\n",
+        "# 📚 XMind 导入汇总\n",
+        f"> 来自 `{xmind_name}.xmind` | 共生成 {len(created_files)} 个文件\n",
+    ]
+    for fp in created_files:
+        rel = Path(fp).relative_to(vault)
+        summary_lines.append(f"- [[{rel.with_suffix('')}]]")
+    summary_path.write_text("\n".join(summary_lines), encoding="utf-8")
+    created_files.append(str(summary_path))
+
+    return created_files
 
 
-def _generate_summary_page(sheets_nodes: list) -> str:
-    """生成汇总页。"""
-    lines = []
-    lines.append(make_front_matter(
-        title="XMind 导入汇总",
-        tags=["xmind", "汇总", "思维导图"],
-    ))
-    lines.append("")
-    lines.append("# 🗺️ XMind 思维导图导入汇总")
-    lines.append("")
-    lines.append("| 思维导图 | 节点数 | 根主题 |")
-    lines.append("|---------|--------|--------|")
+def _guess_category_from_xmind(name: str) -> str:
+    """从文件名推测分类。"""
+    name_lower = name.lower()
+    categories = {
+        "ai": "AI学习", "机器学习": "AI学习", "llm": "AI学习",
+        "python": "编程开发", "编程": "编程开发", "代码": "编程开发",
+        "经济学": "经济学", "经济": "经济学", "金融": "经济学",
+    }
+    for keyword, category in categories.items():
+        if keyword in name_lower:
+            return category
+    return "未分类"
 
-    for sheet_title, root, nodes in sheets_nodes:
-        lines.append(f"| [[{sheet_title} — 索引]] | {len(nodes)} | {root['title']} |")
 
-    lines.append("")
-    return "\n".join(lines)
+def _safe_filename(name: str) -> str:
+    """跨平台安全文件名。"""
+    import re
+    name = re.sub(r'[\\/:*?"<>|]', "_", name).strip()
+    name = re.sub(r"\s+", " ", name)
+    return name[:80] or "未命名"
+
+
+def _import_datetime():
+    """延迟导入 datetime 以避免干扰 YAML front-matter 格式。"""
+    from datetime import date
+    return date.today().isoformat()

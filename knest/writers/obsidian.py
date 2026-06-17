@@ -1,11 +1,13 @@
 """
-Obsidian 笔记写入器。
+Obsidian 笔记写入器 — 跨平台路径安全。
 
 将 LLM 整理后的结构化笔记写入 Obsidian Vault，
 支持自动分类、YAML front-matter、[[双向链接]]。
 """
+import json
 import os
 from datetime import date
+from pathlib import Path
 from typing import Optional
 
 from knest.writers import BaseWriter, WriteResult
@@ -78,7 +80,7 @@ def make_front_matter(
 
 
 class ObsidianWriter(BaseWriter):
-    """将笔记写入 Obsidian Vault。"""
+    """将笔记写入 Obsidian Vault，跨平台路径安全。"""
 
     def __init__(self, config: Optional[Config] = None):
         self.config = config or Config()
@@ -89,7 +91,8 @@ class ObsidianWriter(BaseWriter):
 
     @property
     def notes_base(self) -> str:
-        return os.path.join(self.vault_path, self.config.obsidian_notes_dir)
+        """跨平台安全的 Obsidian Notes 基础路径。"""
+        return str(Path(self.vault_path) / self.config.obsidian_notes_dir)
 
     def write(self, content: str, title: str, **kwargs) -> WriteResult:
         """写入笔记到 Obsidian Vault。
@@ -98,7 +101,7 @@ class ObsidianWriter(BaseWriter):
             content: 笔记完整内容（含 YAML front-matter）
             title: 笔记标题（用作文件名）
             **kwargs:
-                category: 分类目录名（如 "AI学习", "经济学"），auto 则自动判断
+                category: 分类目录名，auto 则自动判断
                 tags: 标签列表
                 source: 来源描述
                 subdir: 子目录（如 "思维导图"）
@@ -115,37 +118,33 @@ class ObsidianWriter(BaseWriter):
         if category == "auto":
             category = guess_category(title, tags, content)
 
-        # 构建目标路径
-        target_dir = os.path.join(self.notes_base, category)
+        # 构建目标路径 — 使用 Path 实现跨平台兼容
+        base = Path(self.notes_base)
+        target = base / category
         if subdir:
-            target_dir = os.path.join(target_dir, subdir)
+            target = target / subdir
 
-        os.makedirs(target_dir, exist_ok=True)
+        target.mkdir(parents=True, exist_ok=True)
 
         # 安全文件名
         safe_title = self._sanitize_filename(title)
-        file_path = os.path.join(target_dir, f"{safe_title}.md")
+        file_path = target / f"{safe_title}.md"
 
         # 避免文件名冲突
         counter = 1
-        while os.path.exists(file_path):
-            file_path = os.path.join(target_dir, f"{safe_title}_{counter}.md")
+        while file_path.exists():
+            file_path = target / f"{safe_title}_{counter}.md"
             counter += 1
 
         # 写入
-        with open(file_path, "w", encoding="utf-8") as f:
-            f.write(content)
-
+        file_path.write_text(content, encoding="utf-8")
         print(f"  ✅ 写入: {file_path}")
-        return WriteResult(success=True, path=file_path)
+        return WriteResult(success=True, path=str(file_path))
 
     @staticmethod
     def _sanitize_filename(name: str) -> str:
         import re
+        # Windows 不能有 \ / : * ? " < > |，统一替换为 _
         name = re.sub(r'[\\/:*?"<>|]', "_", name).strip()
         name = re.sub(r"\s+", " ", name)
         return name or "未命名"
-
-
-# 确保 json 可用
-import json

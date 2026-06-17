@@ -1,32 +1,28 @@
 """
-B站 (Bilibili) 视频采集器。
+B站 (Bilibili) 视频采集器 — 跨平台兼容。
 
 绕过 412 反爬策略：
 1. B站公开 API → 获取视频信息
 2. Playwright 获取新鲜 cookies
 3. 播放 API + cookies → 视频流地址
 4. requests stream → 下载到本地
-
-使用方式：
-    collector = BilibiliCollector()
-    info = collector.collect("BV1xxxxxx")
-    # info.local_path 即为下载后的文件路径
 """
+import json
 import os
 import re
 import sys
-import json
-import requests
 from pathlib import Path
 from typing import Optional
+
+import requests
 from tqdm import tqdm
 
 from knest.collectors import BaseCollector, MediaInfo
-from knest.config import Config
+from knest.config import Config, IS_WINDOWS
 
 
 class BilibiliCollector(BaseCollector):
-    """B站视频采集器。"""
+    """B站视频采集器，跨平台路径安全。"""
 
     def __init__(self, config: Optional[Config] = None):
         self.config = config or Config()
@@ -47,7 +43,7 @@ class BilibiliCollector(BaseCollector):
 
     @staticmethod
     def sanitize_filename(name: str) -> str:
-        """清理文件名中的非法字符。"""
+        """清理文件名中的非法字符（跨平台）。"""
         return re.sub(r'[\\/:*?"<>|]', "_", name).strip()[:80]
 
     def collect(self, target: str, **kwargs) -> MediaInfo:
@@ -60,7 +56,7 @@ class BilibiliCollector(BaseCollector):
                 output_dir: 下载目录（默认 use config.cache_dir）
 
         Returns:
-            MediaInfo: 包含标题、UP主、时长、本地路径等信息
+            MediaInfo
         """
         bvid = self.extract_bvid(target)
         if not bvid:
@@ -68,7 +64,10 @@ class BilibiliCollector(BaseCollector):
 
         quality = kwargs.get("quality", self.config.bilibili_quality)
         output_dir = kwargs.get("output_dir") or self.config.cache_dir
-        os.makedirs(output_dir, exist_ok=True)
+
+        # 跨平台路径处理
+        out_dir = Path(output_dir)
+        out_dir.mkdir(parents=True, exist_ok=True)
 
         # ── Step 1: 获取视频信息 ──
         print(f"[B站] 获取视频信息: {bvid}")
@@ -112,7 +111,7 @@ class BilibiliCollector(BaseCollector):
 
         # ── Step 4: 下载视频 ──
         safe_title = self.sanitize_filename(title)
-        out_path = os.path.join(output_dir, f"{safe_title}.mp4")
+        out_path = out_dir / f"{safe_title}.mp4"
 
         print("[B站] 下载中...")
         r = requests.get(video_url, headers=self._headers, stream=True, timeout=30)
@@ -123,7 +122,7 @@ class BilibiliCollector(BaseCollector):
                     f.write(chunk)
                     pbar.update(len(chunk))
 
-        file_size = os.path.getsize(out_path)
+        file_size = out_path.stat().st_size
         print(f"  ✅ 下载完成: {file_size / 1024 / 1024:.1f} MB")
 
         return MediaInfo(
@@ -132,23 +131,20 @@ class BilibiliCollector(BaseCollector):
             source_platform="bilibili",
             duration=duration,
             uploader=uploader,
-            local_path=out_path,
+            local_path=str(out_path),
         )
 
     def _get_cookies(self) -> list[dict]:
-        """获取 B站 cookies。
-
-        优先从缓存文件加载，失效则用 Playwright 重新获取。
-        """
-        cookie_file = self.config.bilibili_cookie_file
+        """获取 B站 cookies — 跨平台路径。"""
+        cookie_file = Path(self.config.bilibili_cookie_file)
 
         # 尝试从缓存加载
-        if os.path.exists(cookie_file):
+        if cookie_file.exists():
             with open(cookie_file, encoding="utf-8") as f:
                 return json.load(f)
 
         # Playwright 获取新鲜 cookies
-        return self._fresh_cookies(cookie_file)
+        return self._fresh_cookies(str(cookie_file))
 
     def _fresh_cookies(self, save_path: str) -> list[dict]:
         """用 Playwright 获取新鲜 cookies。"""
@@ -160,8 +156,16 @@ class BilibiliCollector(BaseCollector):
             )
 
         print("[B站] 🍪 获取新鲜 cookies (Playwright)...")
+
+        # Windows 上 Playwright 默认浏览器路径在 %APPDATA%
+        launch_options = {}
+        if IS_WINDOWS:
+            browsers_dir = self.config.get("playwright_browsers_dir")
+            if browsers_dir:
+                launch_options["executable_path"] = None  # 让 Playwright 自己找
+
         with sync_playwright() as p:
-            browser = p.chromium.launch(headless=True)
+            browser = p.chromium.launch(headless=True, **launch_options)
             ctx = browser.new_context()
             page = ctx.new_page()
             page.goto("https://www.bilibili.com/", wait_until="networkidle")
@@ -169,8 +173,9 @@ class BilibiliCollector(BaseCollector):
             browser.close()
 
         # 缓存 cookies
-        os.makedirs(os.path.dirname(save_path), exist_ok=True)
-        with open(save_path, "w", encoding="utf-8") as f:
+        save_path_obj = Path(save_path)
+        save_path_obj.parent.mkdir(parents=True, exist_ok=True)
+        with open(save_path_obj, "w", encoding="utf-8") as f:
             json.dump(cookies, f)
 
         return cookies

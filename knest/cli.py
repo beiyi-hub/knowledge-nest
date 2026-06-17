@@ -19,8 +19,8 @@ from knest.config import Config, default_config
 from knest.collectors.bilibili import BilibiliCollector
 from knest.processors.whisper import WhisperProcessor
 from knest.writers.obsidian import ObsidianWriter, guess_category
-from knest.parsers.xmind_parser import parse_xmind, to_tree, to_markdown
-from knest.parsers.xmind_to_obsidian import xmind_to_obsidian
+from knest.parsers.xmind_parser import parse_xmind, to_tree, to_markdown, to_text
+from knest.parsers.xmind_to_obsidian import import_xmind_to_obsidian
 
 
 def cmd_bilibili(args):
@@ -81,12 +81,9 @@ def cmd_xmind(args):
     config = Config(args.config)
 
     if args.obsidian:
-        files = xmind_to_obsidian(
+        files = import_xmind_to_obsidian(
             args.target,
             config=config,
-            subdir=args.dir or "",
-            summary=args.summary,
-            moc_only=args.moc_only,
         )
         print(f"✅ 生成 {len(files)} 个文件:")
         for f in files:
@@ -95,7 +92,6 @@ def cmd_xmind(args):
         sheets = parse_xmind(args.target)
         print(to_markdown(sheets))
     elif args.text:
-        from knest.parsers.xmind_parser import to_text
         sheets = parse_xmind(args.target)
         print(to_text(sheets))
     else:

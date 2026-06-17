@@ -1,18 +1,27 @@
 # Knowledge Nest 配置文件
 # 复制此文件为 config.yaml 并修改
 
-# 缓存和输出目录
-cache_dir: ~/.knest/cache
-output_dir: ~/.knest/output
+# ── 缓存和输出目录 ──
+# Windows 自动使用 %LOCALAPPDATA%\knest\cache 和 %LOCALAPPDATA%\knest\output
+# Linux/macOS 自动使用 ~/.knest/cache 和 ~/.knest/output
+# 如需自定义，取消注释并修改：
+# cache_dir: ~/.knest/cache
+# output_dir: ~/.knest/output
 
-# Obsidian 集成
+# ── Obsidian 集成 ──
+# Windows 默认: %USERPROFILE%\Documents\obsidian-vault
+# Linux/macOS 默认: ~/obsidian-vault
 obsidian_vault: ~/obsidian-vault
 obsidian_notes_dir: Notes
 
-# B站下载
+# ── B站下载 ──
 bilibili_quality: 80        # 80=1080P, 64=720P, 32=480P, 16=360P
 
-# Whisper 转写
+# ── Whisper 转写 ──
 whisper_model: base          # tiny/base/small/medium/large-v3
 whisper_language: zh         # zh/en/ru/ja
 hf_endpoint: https://hf-mirror.com  # HuggingFace 镜像（国内用户设置）
+
+# ── Windows 特有配置 ──
+# ffmpeg 路径（Windows 上自动用 %LOCALAPPDATA%\knest 下的 ffmpeg）
+# ffmpeg_path: C:\tools\ffmpeg\bin\ffmpeg.exe

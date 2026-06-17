@@ -151,8 +151,28 @@ knowledge-nest/
 1. **零依赖优先** — XMind 解析器纯 Python 标准库实现
 2. **一切可配置** — 没有硬编码路径，所有路径通过配置管理
 3. **模块化可扩展** — 采集器/处理器/写入器全用抽象基类，新增平台只需继承
-4. **跨平台友好** — 使用 `os.path.join`/`pathlib`，告别硬编码
+4. **跨平台友好** — 使用 `pathlib` + `platform`，全自动适配 Linux/macOS/Windows
 5. **AI 增强不替代** — LLM 做结构化，知识组织由你掌控
+
+---
+
+## 🪟 Windows 用户
+
+专为 Windows 优化的分支 `win-support` 已就绪：
+
+```bash
+git checkout win-support
+```
+
+特性：
+- ✅ 路径自动适配 `%LOCALAPPDATA%`、`%USERPROFILE%` 等 Windows 风格
+- ✅ 检测 Python 可执行文件自动切换 `python` / `python3`
+- ✅ ffmpeg 自动下载安装（无需手动配置）
+- ✅ `knest.cmd` / `knest.ps1` 双击即用入口
+- ✅ PowerShell 自动安装脚本 `scripts/install_windows.ps1`
+- ✅ 文件名字符跨平台安全（自动替换 `\ / : * ? " < > |`）
+
+👉 详见 [README_windows.md](./README_windows.md)
 
 ---
 
